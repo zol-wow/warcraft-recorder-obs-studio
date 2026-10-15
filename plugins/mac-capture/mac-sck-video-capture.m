@@ -196,6 +196,10 @@ API_AVAILABLE(macos(12.5)) static bool init_screen_stream(struct screen_capture 
 
     CGColorRef background = CGColorGetConstantColor(kCGColorClear);
     [sc->stream_properties setQueueDepth:8];
+    if (!pthread_mutex_lock(&sc->mutex)) {
+        [sc->stream_properties setMinimumFrameInterval:sc->frame_interval];
+        pthread_mutex_unlock(&sc->mutex);
+    }
     [sc->stream_properties setShowsCursor:!sc->hide_cursor];
     [sc->stream_properties setColorSpaceName:kCGColorSpaceDisplayP3];
     [sc->stream_properties setBackgroundColor:background];
@@ -289,6 +293,7 @@ API_AVAILABLE(macos(12.5)) static void *sck_video_capture_create(obs_data_t *set
 
     sc->application_id = [[NSString alloc] initWithUTF8String:obs_data_get_string(settings, "application")];
     pthread_mutex_init(&sc->mutex, NULL);
+    sc->frame_interval = kCMTimeZero;
 
     if (!init_screen_stream(sc))
         goto fail;
@@ -304,6 +309,14 @@ fail:
 API_AVAILABLE(macos(12.5)) static void sck_video_capture_tick(void *data, float seconds __unused)
 {
     struct screen_capture *sc = data;
+
+    // Cache the frame interval for the capture callback, which runs on a
+    // ScreenCaptureKit queue and can't read the video info safely.
+    CMTime frame_interval = video_frame_interval();
+    if (!pthread_mutex_lock(&sc->mutex)) {
+        sc->frame_interval = frame_interval;
+        pthread_mutex_unlock(&sc->mutex);
+    }
 
     if (!sc->current)
         return;

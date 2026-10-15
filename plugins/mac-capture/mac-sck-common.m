@@ -166,6 +166,19 @@ bool build_window_list(struct screen_capture *sc, obs_properties_t *props)
     return true;
 }
 
+// Capture no faster than frames are rendered. Otherwise ScreenCaptureKit
+// delivers frames at the display refresh rate and the extras are dropped.
+// Only call this on the graphics thread: a video reset frees the mix this
+// reads, and stops the graphics thread first.
+CMTime video_frame_interval(void)
+{
+    struct obs_video_info ovi;
+    if (obs_get_video_info(&ovi) && ovi.fps_num > 0)
+        return CMTimeMake(ovi.fps_den, ovi.fps_num);
+
+    return kCMTimeZero;
+}
+
 bool build_application_list(struct screen_capture *sc, obs_properties_t *props)
 {
     os_sem_wait(sc->shareable_content_available);
@@ -272,6 +285,14 @@ API_AVAILABLE(macos(12.5)) void screen_stream_video_update(struct screen_capture
                     needs_to_update_properties = true;
                 }
             }
+        }
+
+        // The video frame rate can change while this stream is running. Only
+        // reconfigure once the frame size is known, as it's set below too.
+        if (sc->frame.size.width > 0 &&
+            CMTimeCompare(sc->stream_properties.minimumFrameInterval, sc->frame_interval) != 0) {
+            [sc->stream_properties setMinimumFrameInterval:sc->frame_interval];
+            needs_to_update_properties = true;
         }
 
         if (needs_to_update_properties) {

@@ -58,6 +58,7 @@ struct API_AVAILABLE(macos(12.5)) screen_capture {
     bool capture_failed;
 
     pthread_mutex_t mutex;
+    CMTime frame_interval;
 
     ScreenCaptureStreamType capture_type;
     ScreenCaptureAudioStreamType audio_capture_type;
@@ -75,6 +76,8 @@ API_AVAILABLE(macos(12.5)) bool build_display_list(struct screen_capture *sc, ob
 API_AVAILABLE(macos(12.5)) bool build_window_list(struct screen_capture *sc, obs_properties_t *props);
 
 API_AVAILABLE(macos(12.5)) bool build_application_list(struct screen_capture *sc, obs_properties_t *props);
+
+CMTime video_frame_interval(void);
 
 static const char *screen_capture_getname(void *unused __unused);
 
