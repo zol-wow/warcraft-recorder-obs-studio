@@ -210,7 +210,16 @@ int os_sem_wait(os_sem_t *sem)
 {
 	if (!sem)
 		return -1;
-	return (semaphore_wait(sem->sem) == KERN_SUCCESS) ? 0 : -1;
+
+	/* A signal handled on this thread aborts the wait without taking the
+	 * semaphore. Callers that carry on regardless would then post it once
+	 * too often, so wait again. */
+	kern_return_t ret;
+	do {
+		ret = semaphore_wait(sem->sem);
+	} while (ret == KERN_ABORTED);
+
+	return (ret == KERN_SUCCESS) ? 0 : -1;
 }
 
 #else
